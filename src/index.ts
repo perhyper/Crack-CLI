@@ -39,6 +39,18 @@ export type {
   ImplementerAgentResult,
 } from "./implementer-agent";
 export {
+  GitHubCliPullRequestCreator,
+  PullRequestRunner,
+  parsePullRequestUrl,
+} from "./pr";
+export type {
+  OpenPullRequestOptions,
+  OpenPullRequestResult,
+  PullRequest,
+  PullRequestCreator,
+  PullRequestInput,
+} from "./pr";
+export {
   CodexPlannerAgent,
   buildPlannerPrompt,
   parsePlanWritten,

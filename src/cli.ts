@@ -3,6 +3,8 @@
 import { Router } from "./router";
 import { ImplementerRunner } from "./implementer";
 import type { RunNextResult } from "./implementer";
+import { PullRequestRunner } from "./pr";
+import type { OpenPullRequestResult } from "./pr";
 import { findRepoRoot, MarkdownState } from "./state";
 
 type CommandResult = {
@@ -81,7 +83,45 @@ async function run(argv: string[]): Promise<CommandResult> {
       planPath: stringFlag(args, "plan"),
     });
 
+    if (result.action === "committed") {
+      const pullRequest = await new PullRequestRunner(state).openWhenReady({
+        planPath: result.planPath,
+      });
+      const message = formatRunNextResult(result);
+
+      if (pullRequest.action === "not_ready") {
+        return { status: 0, message };
+      }
+
+      return {
+        status: pullRequest.action === "opened" ? 0 : 1,
+        message: [message, formatOpenPullRequestResult(pullRequest)].join("\n"),
+      };
+    }
+
+    if (result.action === "complete") {
+      const pullRequest = await new PullRequestRunner(state).openWhenReady({
+        planPath: result.planPath,
+      });
+
+      return {
+        status: pullRequest.action === "opened" ? 0 : 1,
+        message: formatOpenPullRequestResult(pullRequest),
+      };
+    }
+
     return { status: result.action === "needs_work" ? 1 : 0, message: formatRunNextResult(result) };
+  }
+
+  if (args.command === "open-pr") {
+    const result = await new PullRequestRunner(state).openWhenReady({
+      planPath: stringFlag(args, "plan"),
+    });
+
+    return {
+      status: result.action === "opened" ? 0 : 1,
+      message: formatOpenPullRequestResult(result),
+    };
   }
 
   throw new Error(`Unknown command: ${args.command}`);
@@ -143,6 +183,7 @@ function helpText(): string {
     "  submit <prompt> [--plan <path>] [--branch <name>] [--title <title>] [--reason <text>]",
     "  route <prompt> [--plan <path>] [--branch <name>] [--title <title>] [--reason <text>]",
     "  run-next [--plan <path>]",
+    "  open-pr [--plan <path>]",
     "  set-pr-lock --branch <name> --pr-url <url> --reason <text> [--status <status>]",
     "  clear-pr-lock",
     "",
@@ -161,6 +202,18 @@ function formatRunNextResult(result: RunNextResult): string {
   }
 
   return `needs_work unit ${result.unitNumber}: ${result.reason}`;
+}
+
+function formatOpenPullRequestResult(result: OpenPullRequestResult): string {
+  if (result.action === "opened") {
+    return `opened_pr: ${result.prUrl} (${result.title})`;
+  }
+
+  if (result.action === "locked") {
+    return `pr_locked: ${result.reason}`;
+  }
+
+  return `pr_not_ready: ${result.reason}`;
 }
 
 if (require.main === module) {
