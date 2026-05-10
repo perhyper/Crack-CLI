@@ -61,6 +61,8 @@ crack dashboard
 crack run-all --plan .crack/plans/<plan>/plan.md
 ```
 
+브라우저에서 branch, plan 진행률, 최근 commit을 읽기 전용으로 보고 싶다면 [Flask Branch Visualizer](flask-branch-visualizer.md)를 사용할 수 있다.
+
 기본 흐름에서는 모든 커밋 단위가 완료되어도 원격 PR을 열지 않고 로컬 브랜치 완료 상태로 멈춘다. 원격 draft PR까지 열려면 remote mode를 명시한다.
 
 ```bash
