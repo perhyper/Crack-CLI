@@ -5,3 +5,5 @@ dist/
 *.pyc
 __pycache__/
 **/__pycache__/
+docs/init.md
+docs/workflow-design.md
