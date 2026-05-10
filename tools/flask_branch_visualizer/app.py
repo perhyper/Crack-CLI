@@ -279,6 +279,56 @@ PAGE_TEMPLATE = """<!doctype html>
       margin-top: 12px;
     }
 
+    .submit-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      padding: 8px 9px;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: rgba(31, 111, 139, 0.65);
+      outline: 2px solid rgba(31, 111, 139, 0.12);
+    }
+
+    .submit-target {
+      margin-bottom: 0;
+    }
+
     button {
       border: 1px solid var(--accent);
       border-radius: 6px;
@@ -405,6 +455,10 @@ PAGE_TEMPLATE = """<!doctype html>
 
       .status-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
       }
     }
 
@@ -551,6 +605,46 @@ PAGE_TEMPLATE = """<!doctype html>
       </div>
 
       <div class="detail-column">
+        <section class="panel" aria-labelledby="submit-heading">
+          <div class="panel-head">
+            <div>
+              <h2 id="submit-heading">Submit</h2>
+              {% if selected_plan %}
+                <p class="muted submit-target">Target plan: <span class="repo-path">{{ selected_plan.relative_plan_path }}</span></p>
+              {% else %}
+                <p class="muted submit-target">No selected plan. Submit will run without --plan.</p>
+              {% endif %}
+            </div>
+          </div>
+          <form class="submit-form" action="/api/actions" method="post" data-submit-form{% if selected_plan %} data-plan-path="{{ selected_plan.relative_plan_path }}"{% endif %}>
+            <input type="hidden" name="action" value="submit">
+            {% if selected_plan %}
+              <input type="hidden" name="planPath" value="{{ selected_plan.relative_plan_path }}">
+            {% endif %}
+            <label class="field full" for="submit-prompt">
+              Prompt
+              <textarea id="submit-prompt" name="prompt" required placeholder="Describe the request"></textarea>
+            </label>
+            <div class="form-grid">
+              <label class="field" for="submit-branch">
+                Branch
+                <input id="submit-branch" name="branch" type="text" placeholder="Optional branch">
+              </label>
+              <label class="field" for="submit-title">
+                Title
+                <input id="submit-title" name="title" type="text" placeholder="Optional title">
+              </label>
+              <label class="field" for="submit-reason">
+                Reason
+                <input id="submit-reason" name="reason" type="text" placeholder="Optional reason">
+              </label>
+            </div>
+            <div class="detail-actions">
+              <button type="submit" data-submit-button>Submit Request</button>
+            </div>
+          </form>
+        </section>
+
         <section class="panel" aria-labelledby="detail-heading">
           {% if selected_plan %}
             <div class="panel-head">
@@ -673,6 +767,8 @@ PAGE_TEMPLATE = """<!doctype html>
       const buttons = Array.from(document.querySelectorAll("[data-action-button]"));
       const refreshButton = document.querySelector("[data-refresh-button]");
       const clearButton = document.querySelector("[data-clear-output]");
+      const submitForm = document.querySelector("[data-submit-form]");
+      const submitControls = submitForm ? Array.from(submitForm.querySelectorAll("input, textarea, button")) : [];
       const status = document.querySelector("[data-action-status]");
       const output = document.querySelector("[data-command-output]");
       const storageKey = "crack-gui:last-action-result";
@@ -699,19 +795,24 @@ PAGE_TEMPLATE = """<!doctype html>
       }
 
       function setRunning(isRunning) {
-        buttons.forEach((button) => {
-          if (isRunning) {
-            button.dataset.originalDisabled = button.disabled ? "true" : "false";
-            button.disabled = true;
-          } else {
-            button.disabled = button.dataset.originalDisabled === "true";
-            delete button.dataset.originalDisabled;
-          }
-        });
+        setDisabled(buttons, isRunning);
+        setDisabled(submitControls, isRunning);
 
         if (refreshButton) {
           refreshButton.disabled = isRunning;
         }
+      }
+
+      function setDisabled(elements, isDisabled) {
+        elements.forEach((element) => {
+          if (isDisabled) {
+            element.dataset.originalDisabled = element.disabled ? "true" : "false";
+            element.disabled = true;
+          } else {
+            element.disabled = element.dataset.originalDisabled === "true";
+            delete element.dataset.originalDisabled;
+          }
+        });
       }
 
       function saveAndRender(result) {
@@ -772,6 +873,69 @@ PAGE_TEMPLATE = """<!doctype html>
           }
         });
       });
+
+      if (submitForm) {
+        submitForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          const formData = new FormData(submitForm);
+          const body = {
+            action: "submit",
+            prompt: getFormText(formData, "prompt")
+          };
+          const planPath = getFormText(formData, "planPath") || submitForm.dataset.planPath || "";
+          if (planPath) {
+            body.planPath = planPath;
+          }
+
+          ["branch", "title", "reason"].forEach((fieldName) => {
+            const value = getFormText(formData, fieldName);
+            if (value) {
+              body[fieldName] = value;
+            }
+          });
+
+          setRunning(true);
+          status.textContent = "Running submit...";
+          output.textContent = "Waiting for command output.";
+
+          try {
+            const response = await fetch("/api/actions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+              throw new Error(payload.error || "Submit failed.");
+            }
+
+            saveAndRender({
+              action: payload.action,
+              command: payload.command,
+              exit_code: payload.exit_code,
+              stdout: payload.stdout,
+              stderr: payload.stderr
+            });
+            window.location.reload();
+          } catch (error) {
+            saveAndRender({
+              action: "submit",
+              command: "POST /api/actions",
+              exit_code: "request failed",
+              stdout: "",
+              stderr: error.message || String(error)
+            });
+            setRunning(false);
+          }
+        });
+      }
+
+      function getFormText(formData, name) {
+        const value = formData.get(name);
+        return typeof value === "string" ? value.trim() : "";
+      }
 
       if (refreshButton) {
         refreshButton.addEventListener("click", async () => {

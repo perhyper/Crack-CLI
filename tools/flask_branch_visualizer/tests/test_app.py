@@ -80,6 +80,41 @@ class FlaskAppTest(unittest.TestCase):
             self.assertIn(b"Check PR Status", response.data)
             self.assertIn(b"Drain Inbox", response.data)
 
+    def test_index_includes_submit_form_and_selected_plan_wiring(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            snapshot = sample_snapshot(root)
+
+            with patch("tools.flask_branch_visualizer.app.read_repository_snapshot", return_value=snapshot):
+                app = create_app(root)
+                response = app.test_client().get("/")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b'<form class="submit-form" action="/api/actions" method="post" data-submit-form', response.data)
+            self.assertIn(b'data-plan-path=".crack/plans/demo/plan.md"', response.data)
+            self.assertIn(b'name="action" value="submit"', response.data)
+            self.assertIn(b'name="planPath" value=".crack/plans/demo/plan.md"', response.data)
+            self.assertIn(b'name="prompt"', response.data)
+            self.assertIn(b'name="branch"', response.data)
+            self.assertIn(b'name="title"', response.data)
+            self.assertIn(b'name="reason"', response.data)
+            self.assertIn(b"Submit Request", response.data)
+
+    def test_index_submit_form_omits_plan_path_without_selected_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            snapshot = sample_snapshot(root)
+            snapshot["plans"] = []
+
+            with patch("tools.flask_branch_visualizer.app.read_repository_snapshot", return_value=snapshot):
+                app = create_app(root)
+                response = app.test_client().get("/")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b'data-submit-form', response.data)
+            self.assertNotIn(b'name="planPath"', response.data)
+            self.assertIn(b"Submit will run without --plan.", response.data)
+
     def test_index_renders_queue_and_log_empty_states(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir).resolve()
