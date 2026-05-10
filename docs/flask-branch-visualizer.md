@@ -2,7 +2,7 @@
 
 `tools/flask_branch_visualizer` is a local-only Flask GUI for Crack workflow state and a small set of safe Crack actions.
 
-The page reads `.crack/` Markdown state and git history to show repository status, inbox and PR lock state, plan progress, queue and log detail, branches, and recent commits. It also exposes allowlisted buttons for common workflow commands, so localhost users can continue a plan without leaving the browser.
+The page reads `.crack/` Markdown state and git history to show repository status, inbox and PR lock state, plan progress, queue and log detail, branches, and recent commits. It also exposes allowlisted controls for common workflow commands and request submission, so localhost users can continue a plan without leaving the browser.
 
 This is not a remote dashboard. Bind to `127.0.0.1` for local use, and do not expose it to an untrusted network.
 
@@ -39,6 +39,12 @@ python tools/flask_branch_visualizer/app.py --repo /path/to/repo --host 127.0.0.
 
 ## GUI Actions
 
+All GUI actions are allowlisted before execution. Unsupported action names and unsupported fields are rejected instead of passed through to a shell.
+
+Supported submit action:
+
+- `submit`: submit a new request with a required prompt. The form can also send an optional selected plan, branch, title, and reason. When a plan is selected, the GUI submits that plan's `.crack/plans/<plan>/plan.md` path so the CLI receives `--plan`.
+
 Supported plan actions:
 
 - `run-next`: run the next pending commit unit for the selected plan.
@@ -56,7 +62,13 @@ The GUI does not support merge. Merge remains CLI-only:
 crack merge --plan .crack/plans/<plan>/plan.md
 ```
 
-Action requests are synchronous. The browser disables action buttons while a command is running and then refreshes the snapshot from `/api/state`.
+Action requests are synchronous, local subprocess calls. The browser disables action buttons while a command is running and then refreshes the snapshot from `/api/state`.
+
+## Live Refresh
+
+The page uses lightweight polling against `/api/state` to notice changes made by CLI commands, another local browser tab, or a completed GUI action. It compares the latest JSON snapshot with the last rendered snapshot and reloads the page when the state changes while no action is running.
+
+This is intentionally simple localhost behavior. There are no WebSockets, background jobs, server-side queues, or remote dashboard state. The manual Refresh State button still fetches `/api/state` directly and remains useful if polling fails.
 
 ## Verify
 
@@ -88,7 +100,13 @@ source "$(git rev-parse --show-toplevel)/myenv/bin/activate"
 python tools/flask_branch_visualizer/app.py --repo . --port 5050
 ```
 
-Then open `http://127.0.0.1:5050` and confirm that repository status, plan detail, action controls, and `/api/state` load.
+Then open `http://127.0.0.1:5050` and run a short manual check:
+
+- Submit a prompt with no selected plan, then submit again with a selected plan and optional branch, title, or reason.
+- For a selected plan, check Run Next Unit, Run All Remaining, and Open PR.
+- Check the repository-level PR Check and Drain Inbox controls.
+- Confirm the command output panel shows each synchronous action result.
+- Change `.crack/` state from the CLI or another local tab and confirm the page automatically refreshes through `/api/state` polling.
 
 ## Troubleshooting
 
