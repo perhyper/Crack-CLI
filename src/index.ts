@@ -58,6 +58,41 @@ export type {
   ImplementerAgentResult,
 } from "./implementer-agent";
 export {
+  CodexMergeAgent,
+  buildMergeAgentPrompt,
+  parseMergeAgentResult,
+} from "./merge-agent";
+export type {
+  CodexMergeAgentOptions,
+  MergeAgent,
+  MergeAgentInput,
+  MergeAgentResult,
+  MergeMode,
+} from "./merge-agent";
+export {
+  GitHubCliPullRequestMerger,
+  GitCliLocalMergeGit,
+  MergeRunner,
+} from "./merge";
+export type {
+  GitCommandResult,
+  LocalMergeGit,
+  LocalMergeOptions,
+  LocalMergeResult,
+  MergePullRequest,
+  PullRequestMergeInput,
+  PullRequestMergeTarget,
+  PullRequestMerger,
+  RemoteMergeGit,
+  RemoteMergeOptions,
+  RemoteMergeResult,
+} from "./merge";
+export {
+  branchNameFromPlan,
+  checkPlanReady,
+} from "./plan-readiness";
+export type { PlanReadiness } from "./plan-readiness";
+export {
   GitHubCliPullRequestCreator,
   PullRequestRunner,
   parsePullRequestUrl,
