@@ -58,6 +58,18 @@ export type {
   ImplementerAgentResult,
 } from "./implementer-agent";
 export {
+  CodexMergeAgent,
+  buildMergeAgentPrompt,
+  parseMergeAgentResult,
+} from "./merge-agent";
+export type {
+  CodexMergeAgentOptions,
+  MergeAgent,
+  MergeAgentInput,
+  MergeAgentResult,
+  MergeMode,
+} from "./merge-agent";
+export {
   GitHubCliPullRequestCreator,
   PullRequestRunner,
   parsePullRequestUrl,
