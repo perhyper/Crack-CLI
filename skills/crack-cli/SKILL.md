@@ -52,14 +52,25 @@ Crack uses `.crack/` as the source of truth:
 
    If a PR lock exists, the request goes to `.crack/inbox.md`. If `--plan <path>` is provided, the request goes to that plan's `queue.md`. Otherwise Crack routes to an active plan or creates a new plan and branch.
 
-3. Inspect state:
+3. When submitting multiple requests, submit them sequentially:
+
+   ```bash
+   crack submit "first request"
+   crack dashboard
+   crack submit "second request"
+   crack dashboard
+   ```
+
+   Do not run multiple `crack submit` or `crack route` commands in parallel. Each submit updates `.crack/plans/`, `queue.md`, and active branch state; the next submit must see those updates so the Router can decide whether the new request depends on an existing plan or should become a new plan. If the user provides a batch of requests, process one request at a time and inspect the result before submitting the next.
+
+4. Inspect state:
 
    ```bash
    crack dashboard
    crack dashboard --watch
    ```
 
-4. Run implementation:
+5. Run implementation:
 
    ```bash
    crack run-next --plan .crack/plans/<plan>/plan.md
@@ -68,7 +79,7 @@ Crack uses `.crack/` as the source of truth:
 
    `run-next` implements one pending commit unit. `run-all` repeats until the plan is complete or a unit returns `needs_work`.
 
-5. Keep completed work local by default, or explicitly use remote mode:
+6. Keep completed work local by default, or explicitly use remote mode:
 
    ```bash
    crack run-all --plan .crack/plans/<plan>/plan.md --remote
@@ -77,7 +88,7 @@ Crack uses `.crack/` as the source of truth:
 
    `run-next` and `run-all` default to local branch completion. `open-pr` defaults to remote mode and creates a draft PR when the plan is ready.
 
-6. Merge when appropriate:
+7. Merge when appropriate:
 
    ```bash
    crack merge --plan .crack/plans/<plan>/plan.md
@@ -106,6 +117,9 @@ All commands accept `--root <path>`.
 ## Operating Rules
 
 - Use `--plan` whenever more than one active plan exists.
+- For multiple new requests, never submit or route them concurrently. Submit one request, let Crack finish creating or queuing the plan, then inspect `crack dashboard` before submitting the next request.
+- Treat `submit` and `route` as state-mutating operations. They must be serialized so Router decisions are based on the latest active plans and queues.
+- Do not run multiple `run-all` commands in the same worktree at the same time. Current local execution shares one checkout and one `.git/index`; parallel runs can race on `git switch`, `git add`, and branch state. Run them one at a time unless the workflow has explicit per-plan worktree isolation.
 - Do not use `--remote` unless the user wants a pushed branch, PR, or remote merge.
 - If `run-next`, `run-all`, or `merge` reports `needs_work`, stop and report the reason. Do not keep retrying blindly.
 - If `pr-check` reports a PR is still open or closed but not merged, keep the lock and leave inbox requests queued.
