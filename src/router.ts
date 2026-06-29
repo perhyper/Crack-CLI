@@ -22,6 +22,11 @@ export type RouteOptions = {
   planTitle?: string;
   reason?: string;
   receivedAt?: string;
+  useRouterAgent?: boolean;
+};
+
+export type RouterDefaults = {
+  useRouterAgent?: boolean;
 };
 
 export class Router {
@@ -29,17 +34,22 @@ export class Router {
   private readonly agent: RouterAgent;
   private readonly planner: PlannerAgent;
   private readonly branchManager: BranchManager;
+  private readonly defaults: Required<RouterDefaults>;
 
   constructor(
     state: MarkdownState,
     agent: RouterAgent = new CodexRouterAgent(),
     planner: PlannerAgent = new CodexPlannerAgent(),
     branchManager?: BranchManager,
+    defaults: RouterDefaults = {},
   ) {
     this.state = state;
     this.agent = agent;
     this.planner = planner;
     this.branchManager = branchManager ?? new GitCliBranchManager(state.repoRoot);
+    this.defaults = {
+      useRouterAgent: defaults.useRouterAgent ?? false,
+    };
   }
 
   async route(prompt: string, options: RouteOptions = {}): Promise<RouteDecision> {
@@ -62,7 +72,11 @@ export class Router {
       const planRecords = await this.state.listPlanRecords();
       const routablePlans = planRecords.filter((plan) => plan.statusSummary.routing.routeToExistingPlanCandidate);
 
-      if (routablePlans.length > 0) {
+      if (options.useRouterAgent ?? this.defaults.useRouterAgent) {
+        if (routablePlans.length === 0) {
+          return this.createPlanFromPrompt(prompt, options);
+        }
+
         const decision = await this.agent.decide({
           repoRoot: this.state.repoRoot,
           prompt,
@@ -74,8 +88,23 @@ export class Router {
 
         return this.applyAgentDecision(prompt, decision, options.receivedAt, routablePlans);
       }
+
+      if (routablePlans.length === 1) {
+        const plan = routablePlans[0];
+        const reason = options.reason ?? "Router agent disabled; routed to the only active incomplete plan.";
+        const target = await this.state.appendQueue(plan.plan, prompt, reason, options.receivedAt);
+        return { action: "route_to_existing_plan", target, reason };
+      }
+
+      if (routablePlans.length > 1) {
+        throw new Error("Multiple active incomplete plans found; pass --plan <path> or --router.");
+      }
     }
 
+    return this.createPlanFromPrompt(prompt, options);
+  }
+
+  private async createPlanFromPrompt(prompt: string, options: RouteOptions): Promise<RouteDecision> {
     const title = options.planTitle ?? titleFromPrompt(prompt);
     const branchName = options.branchName ?? `codex/${slugify(title).toLowerCase()}`;
     const reason = options.reason ?? "No PR lock or selected existing plan candidate; created a new plan.";

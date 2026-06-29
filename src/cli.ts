@@ -32,6 +32,8 @@ type ParsedArgs = {
   flags: Map<string, string | boolean>;
 };
 
+const BOOLEAN_FLAGS = new Set(["h", "help", "merge", "remote", "router", "watch"]);
+
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   try {
     const result = await run(argv);
@@ -67,7 +69,7 @@ async function run(argv: string[]): Promise<CommandResult> {
       throw new Error(`${args.command} requires a prompt`);
     }
 
-    const decision = await new Router(state).route(prompt, {
+    const decision = await createRouter(state, args).route(prompt, {
       planPath: stringFlag(args, "plan"),
       branchName: stringFlag(args, "branch"),
       planTitle: stringFlag(args, "title"),
@@ -189,13 +191,17 @@ async function run(argv: string[]): Promise<CommandResult> {
   }
 
   if (args.command === "pr-check") {
-    const result = await new PrCheckRunner(state).check();
+    const result = await new PrCheckRunner(
+      state,
+      undefined,
+      new InboxDrainer(state, createRouter(state, args)),
+    ).check();
 
     return { status: 0, message: formatPrCheckResult(result) };
   }
 
   if (args.command === "drain") {
-    const result = await new InboxDrainer(state).drain();
+    const result = await new InboxDrainer(state, createRouter(state, args)).drain();
 
     return {
       status: result.action === "locked" ? 1 : 0,
@@ -226,6 +232,11 @@ function parseArgs(argv: string[]): ParsedArgs {
 
     const flag = token.replace(/^-+/, "");
     const next = argv[index + 1];
+
+    if (BOOLEAN_FLAGS.has(flag)) {
+      flags.set(flag, true);
+      continue;
+    }
 
     if (!next || !isFlagValue(next)) {
       flags.set(flag, true);
@@ -274,26 +285,33 @@ function parseBranchMode(args: ParsedArgs, defaultMode: BranchPublicationMode = 
   throw new Error("--branch-mode must be local or remote");
 }
 
+function createRouter(state: MarkdownState, args: ParsedArgs): Router {
+  return new Router(state, undefined, undefined, undefined, {
+    useRouterAgent: args.flags.has("router"),
+  });
+}
+
 function helpText(): string {
   return [
     "Usage: crack <command> [options]",
     "",
     "Commands:",
     "  init",
-    "  submit <prompt> [--plan <path>] [--branch <name>] [--title <title>] [--reason <text>]",
-    "  route <prompt> [--plan <path>] [--branch <name>] [--title <title>] [--reason <text>]",
+    "  submit <prompt> [--plan <path>] [--branch <name>] [--title <title>] [--reason <text>] [--router]",
+    "  route <prompt> [--plan <path>] [--branch <name>] [--title <title>] [--reason <text>] [--router]",
     "  run-next [--plan <path>] [--branch-mode local|remote] [--remote]",
     "  run-all [--plan <path>] [--merge] [--target <branch>] [--branch-mode local|remote] [--remote]",
     "  merge [--plan <path>] [--target <branch>] [--branch-mode local|remote] [--remote]",
     "  dashboard [--root <path>] [--watch] [--interval <seconds>]",
     "  open-pr [--plan <path>] [--branch-mode local|remote] [--remote]",
-    "  pr-check",
-    "  drain",
+    "  pr-check [--router]",
+    "  drain [--router]",
     "  set-pr-lock --branch <name> --pr-url <url> --reason <text> [--status <status>]",
     "  clear-pr-lock",
     "",
     "Global options:",
     "  --root <path>    Repository root. Defaults to the nearest parent containing .git.",
+    "  --router         Enable the Codex Router agent for commands that route requests.",
   ].join("\n");
 }
 
