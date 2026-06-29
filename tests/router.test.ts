@@ -98,61 +98,7 @@ test("route appends to an existing plan queue when selected", async () => {
   });
 });
 
-test("route appends to the only active incomplete plan when router agent is disabled", async () => {
-  await withRepo(async (root) => {
-    const state = new MarkdownState(root);
-    const plan = await state.createPlan({
-      branchName: "codex/current",
-      planTitle: "Current",
-      prompt: "Initial request",
-      reason: "test setup",
-      receivedAt: "2026-05-09 12:00",
-    });
-    await writePlanFile(plan.plan, "codex/current", "Current");
-
-    const decision = await new Router(state, new UnusedRouterAgent()).route("Add dependent follow-up", {
-      receivedAt: "2026-05-09 12:05",
-    });
-
-    assert.equal(decision.action, "route_to_existing_plan");
-    assert.match(decision.reason, /Router agent disabled/);
-    assert.match(await readFile(plan.queue, "utf8"), /> Add dependent follow-up/);
-  });
-});
-
-test("route requires explicit routing when router agent is disabled and multiple active plans exist", async () => {
-  await withRepo(async (root) => {
-    const state = new MarkdownState(root);
-    const firstPlan = await state.createPlan({
-      branchName: "codex/first",
-      planTitle: "First",
-      prompt: "Initial request",
-      reason: "test setup",
-      receivedAt: "2026-05-09 12:00",
-    });
-    const secondPlan = await state.createPlan({
-      branchName: "codex/second",
-      planTitle: "Second",
-      prompt: "Initial request",
-      reason: "test setup",
-      receivedAt: "2026-05-09 12:00",
-    });
-    await writePlanFile(firstPlan.plan, "codex/first", "First");
-    await writePlanFile(secondPlan.plan, "codex/second", "Second");
-
-    await assert.rejects(
-      new Router(state, new UnusedRouterAgent()).route("Add follow-up", {
-        receivedAt: "2026-05-09 12:05",
-      }),
-      /Multiple active incomplete plans found; pass --plan <path> or --router\./,
-    );
-
-    assert.doesNotMatch(await readFile(firstPlan.queue, "utf8"), /> Add follow-up/);
-    assert.doesNotMatch(await readFile(secondPlan.queue, "utf8"), /> Add follow-up/);
-  });
-});
-
-test("route asks the router agent when router agent is enabled", async () => {
+test("route asks the router agent when active incomplete plans exist", async () => {
   await withRepo(async (root) => {
     const state = new MarkdownState(root);
     const plan = await state.createPlan({
@@ -169,12 +115,9 @@ test("route asks the router agent when router agent is enabled", async () => {
       reason: "Depends on current plan.",
     });
 
-    const decision = await new Router(state, agent, undefined, undefined, { useRouterAgent: true }).route(
-      "Add dependent follow-up",
-      {
-        receivedAt: "2026-05-09 12:05",
-      },
-    );
+    const decision = await new Router(state, agent).route("Add dependent follow-up", {
+      receivedAt: "2026-05-09 12:05",
+    });
 
     assert.equal(decision.action, "route_to_existing_plan");
     assert.equal(agent.inputs.length, 1);
@@ -185,7 +128,7 @@ test("route asks the router agent when router agent is enabled", async () => {
   });
 });
 
-test("route only passes active incomplete plans to the enabled router agent", async () => {
+test("route only passes active incomplete plans to the router agent", async () => {
   await withRepo(async (root) => {
     const state = new MarkdownState(root);
     const activePlan = await state.createPlan({
@@ -218,12 +161,9 @@ test("route only passes active incomplete plans to the enabled router agent", as
       reason: "Depends on current plan.",
     });
 
-    const decision = await new Router(state, agent, undefined, undefined, { useRouterAgent: true }).route(
-      "Add dependent follow-up",
-      {
-        receivedAt: "2026-05-09 12:05",
-      },
-    );
+    const decision = await new Router(state, agent).route("Add dependent follow-up", {
+      receivedAt: "2026-05-09 12:05",
+    });
 
     assert.equal(decision.action, "route_to_existing_plan");
     assert.equal(agent.inputs.length, 1);
@@ -315,12 +255,9 @@ test("route rejects router agent decisions targeting non-routable plans", async 
       reason: "The follow-up mentions completed work.",
     });
 
-    const decision = await new Router(state, agent, planner, branches, { useRouterAgent: true }).route(
-      "Add dependent follow-up",
-      {
-        receivedAt: "2026-05-09 12:05",
-      },
-    );
+    const decision = await new Router(state, agent, planner, branches).route("Add dependent follow-up", {
+      receivedAt: "2026-05-09 12:05",
+    });
 
     assert.equal(decision.action, "create_new_plan");
     assert.match(decision.reason, /Router selected non-routable plan/);
@@ -351,12 +288,9 @@ test("route creates a new plan from the router agent decision", async () => {
       reason: "Independent work.",
     });
 
-    const decision = await new Router(state, agent, planner, branches, { useRouterAgent: true }).route(
-      "Add separate feature",
-      {
-        receivedAt: "2026-05-09 12:05",
-      },
-    );
+    const decision = await new Router(state, agent, planner, branches).route("Add separate feature", {
+      receivedAt: "2026-05-09 12:05",
+    });
 
     const planPath = path.join(root, ".crack", "plans", "codex-separate", "plan.md");
     assert.equal(decision.action, "create_new_plan");

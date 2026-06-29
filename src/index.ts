@@ -1,5 +1,5 @@
 export { Router } from "./router";
-export type { RouteAction, RouteDecision, RouteOptions, RouterDefaults } from "./router";
+export type { RouteAction, RouteDecision, RouteOptions } from "./router";
 export {
   CODEX_CLI_MODEL,
   CODEX_CLI_REASONING_EFFORT,

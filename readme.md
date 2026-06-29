@@ -62,8 +62,7 @@ Crack's scheduling model is deliberately boring.
 - `submit` and `route` do not immediately implement code.
 - If `.crack/pr-lock.md` exists, new requests go to `inbox.md`.
 - If you pass `--plan <path>`, the request goes to that Plan's `queue.md`.
-- By default, a single active Plan receives the request in its `queue.md`; multiple active Plans require `--plan <path>`.
-- Pass `--router` when you want the Router agent to decide whether to attach the request or create a new branch.
+- If active Plans exist, the Router decides whether to attach the request to an existing Plan or create a new branch.
 - `run-next` executes one unfinished commit unit.
 - `run-all` repeats `run-next` until the Plan is complete or something returns `needs_work`.
 
@@ -73,7 +72,7 @@ The next commit unit is selected by comparing `### Commit N:` sections in `plan.
 
 Remote PR mode creates `.crack/pr-lock.md`. While that file exists, Crack pauses new Plan creation and stores incoming requests in `inbox.md`.
 
-The lock is cleared when `crack pr-check` sees that the PR was merged, or when remote merge succeeds for the same branch. After that, `drain` routes queued inbox requests back through the default sequential routing path one at a time. Pass `--router` to `drain` or `pr-check` when you want the Router agent involved.
+The lock is cleared when `crack pr-check` sees that the PR was merged, or when remote merge succeeds for the same branch. After that, `drain` routes queued inbox requests back through the Router one at a time.
 
 ### Merge
 

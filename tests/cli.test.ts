@@ -39,29 +39,6 @@ test("dashboard command is listed in CLI help", async () => {
     /run-all \[--plan <path>\] \[--merge\] \[--target <branch>\] \[--branch-mode local\|remote\] \[--remote\]/,
   );
   assert.match(result.stdout, /merge \[--plan <path>\] \[--target <branch>\] \[--branch-mode local\|remote\] \[--remote\]/);
-  assert.match(result.stdout, /submit <prompt> .* \[--router\]/);
-  assert.match(result.stdout, /--router\s+Enable the Codex Router agent/);
-});
-
-test("submit treats --router as a boolean flag before the prompt", async () => {
-  await withGitRepo(async (root) => {
-    await writeDashboardFixture(root);
-
-    const result = await captureMain([
-      "submit",
-      "--router",
-      "Follow-up request",
-      "--root",
-      root,
-      "--plan",
-      ".crack/plans/demo/plan.md",
-    ]);
-
-    assert.equal(result.status, 0);
-    assert.equal(result.stderr, "");
-    assert.match(result.stdout, /route_to_existing_plan: /);
-    assert.match(await readFile(path.join(root, ".crack", "plans", "demo", "queue.md"), "utf8"), /> Follow-up request/);
-  });
 });
 
 test("merge command runs a local merge by default", async () => {
